@@ -1,29 +1,11 @@
 import streamlit as st
-import subprocess
-import sys
-import os
+import whisper
+from moviepy.editor import VideoFileClip
 import tempfile
-import time
+import os
 
 # -----------------------------
-# Install Whisper if missing
-# -----------------------------
-try:
-    import whisper
-except ImportError:
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "openai-whisper"])
-    import whisper
-
-# MoviePy import (fixed version)
-try:
-    from moviepy.editor import VideoFileClip
-except ImportError:
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "moviepy"])
-    from moviepy.editor import VideoFileClip
-
-
-# -----------------------------
-# Page Config
+# Page Configuration
 # -----------------------------
 st.set_page_config(
     page_title="Video to Text Converter",
@@ -32,15 +14,15 @@ st.set_page_config(
 )
 
 # -----------------------------
-# Custom CSS
+# Custom Styling
 # -----------------------------
 st.markdown("""
     <style>
     .stApp {
         max-width: 800px;
-        margin: 0 auto;
+        margin: auto;
     }
-    .main-title {
+    .title {
         text-align: center;
         color: #4CAF50;
         font-size: 2.5rem;
@@ -49,11 +31,11 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-st.markdown("<h1 class='main-title'>🎥 Video to Text Converter</h1>", unsafe_allow_html=True)
-st.markdown("Upload any video file and get instant text transcription!")
+st.markdown("<div class='title'>🎥 Video to Text Converter</div>", unsafe_allow_html=True)
+st.write("Upload a video and get instant transcription using Whisper AI.")
 
 # -----------------------------
-# Sidebar
+# Sidebar Settings
 # -----------------------------
 with st.sidebar:
     st.header("⚙️ Settings")
@@ -72,21 +54,19 @@ with st.sidebar:
         "medium": "High accuracy, slower"
     }[model_size])
 
-
 # -----------------------------
-# Cache Whisper Model
+# Cache Model (IMPORTANT)
 # -----------------------------
 @st.cache_resource
-def load_whisper_model(size):
-    return whisper.load_model(size)
-
+def load_model(size):
+    return whisper.load_model(size, device="cpu")  # CPU safe for cloud
 
 # -----------------------------
 # File Upload
 # -----------------------------
 uploaded_file = st.file_uploader(
-    "Choose a video file",
-    type=['mp4', 'avi', 'mov', 'mkv', 'webm', 'm4v']
+    "Upload Video",
+    type=["mp4", "avi", "mov", "mkv", "webm", "m4v"]
 )
 
 if uploaded_file is not None:
@@ -99,7 +79,7 @@ if uploaded_file is not None:
         st.video(uploaded_file)
 
     with col2:
-        st.markdown("**📁 File Details:**")
+        st.write("**File Details:**")
         st.write(f"Name: {uploaded_file.name}")
         st.write(f"Size: {file_size:.2f} MB")
 
@@ -113,7 +93,7 @@ if uploaded_file is not None:
             status = st.empty()
 
             # -----------------------------
-            # Save Video
+            # Save Uploaded Video
             # -----------------------------
             status.text("Saving video...")
             progress.progress(10)
@@ -134,7 +114,7 @@ if uploaded_file is not None:
             video = VideoFileClip(video_path)
 
             if video.audio is None:
-                raise Exception("This video file has no audio track.")
+                raise Exception("This video has no audio track.")
 
             video.audio.write_audiofile(audio_path, logger=None)
             video.close()
@@ -142,10 +122,10 @@ if uploaded_file is not None:
             # -----------------------------
             # Load Model
             # -----------------------------
-            status.text(f"Loading {model_size} model...")
+            status.text("Loading Whisper model...")
             progress.progress(50)
 
-            model = load_whisper_model(model_size)
+            model = load_model(model_size)
 
             # -----------------------------
             # Transcribe
@@ -173,7 +153,7 @@ if uploaded_file is not None:
             )
 
         except Exception as e:
-            st.error(f"Error: {str(e)}")
+            st.error(f"❌ Error: {str(e)}")
 
         finally:
             # -----------------------------
@@ -185,14 +165,13 @@ if uploaded_file is not None:
             if audio_path and os.path.exists(audio_path):
                 os.remove(audio_path)
 
-
 # -----------------------------
 # Footer
 # -----------------------------
 st.markdown("---")
 st.markdown(
     "<div style='text-align:center; color:gray;'>"
-    "Files are processed temporarily and deleted automatically"
+    "Files are processed temporarily and deleted automatically."
     "</div>",
     unsafe_allow_html=True
 )
